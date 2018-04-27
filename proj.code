@@ -1,0 +1,236 @@
+<define PARSE CODE.Program/>
+
+<define TOKEN ((":" ":") ("<" "=") (">" "=") (":" "="))/>
+
+<define KEYWORDS ("hd" | "tl" | "ref" | "not" | "and" | "or" | "while" | "do" | "let" | "in" | "end" | "if" | "then" | "else" | "val" | "int" | "real" | "unit" | "bool" | "list")/>
+
+<code Bop pars=(op, op1, op2) > @op1 op op2@ </code>
+
+<code Uop pars=(op, op1) > @op op1@ </code>
+
+<code Nop pars=(op) > @op@ </code>
+
+<code Lop pars=(op, op1) > new list<int> (@op@, @op1@) </code>
+
+<code Rop pars=(op, op1) > @op op1@ </code>
+
+<code Eop pars=(op, op1, op2) > @op op1 op2@ </code>
+
+<code While pars=(op, op1, op2) > @op op1, op2@ </code>
+
+<code Do pars=(op, op1) > @op op1@ </code>
+
+<code If pars=(op, op1, op2) > @op op1 op2@ </code>
+
+<code Then pars=(op, op1, op2) > @op op1 op2@ </code>
+
+<code Else pars=(op, op1) > @op op1@ </code>
+
+<code Let pars=(op, op1, op2) > @op op1 op2@ </code>
+
+<code InEnd pars=(op, op1, op2) > @op op2 op1@ </code>
+
+<code Val pars=(op, op1, op2) > @op op1 op2@ </code>
+
+<code Col pars=(op, op1, op2) > @op op1 op2@ </code>
+
+<code Eq pars=(op, op1) > @op op1@ </code>
+
+<code Par pars=(op, op1, op2) > @op op2 op1@ </code>
+
+<code Program
+    parse = LIST((CODE.semi ";"), "\n")
+/>
+
+<code semi pars=(prog:CODE.Expression) parse=(prog)>
+#include <ml-c.h>
+int main() {
+@prog@
+}
+</code>
+
+<code Expression
+    parse =
+        (   ("(" (e1=CODE.Sequence) ")" eval(return(Par#("(",")",e1))))
+        |   ((e1=CODE.IfThenElse) eval(return(e1)))
+        )
+/>
+
+<code Sequence
+    parse = ((e1=CODE.Expression) (e2=CODE.Sequence2) eval(return(e2)))
+/>
+
+<code Sequence2
+    parse =
+        (   (";" (e1=CODE.Expression) eval(Eop#(";", e1, INHERIT)) (e2=CODE.Sequence2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code IfThenElse
+    parse =
+        (   ("if" (e1=CODE.Sequential) eval(If#("if",e1, INHERIT)) "then" (e2=CODE.Expression) eval(Then#("then",e2, Else#("else",INHERIT))) "else" (e3=CODE.Expression) eval(return(Else#(e3))))
+        |   ((e1=CODE.LetIn) eval(return(e1)))
+        )
+/>
+
+<code LetIn
+    parse =
+        (   ("let" (e1=CODE.Definitions) eval(Let#("let",e1,InEnd#("in","end",INHERIT))) "in" (e2=CODE.Sequence) "end" eval(return(e2)))
+        |   ((e1=CODE.While) eval(return(e1)))
+        )
+/>
+
+<code Definitions
+    parse = ((e1=CODE.Definition) (e2=CODE.Definitions2) eval(return(e2)))
+/>
+
+<code Definitions2
+    parse =
+        (   (";" (e1=CODE.Definition) eval(Eop#(";", e1, INHERIT)) (e2=CODE.Definitions2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code While
+    parse =
+        (   ("while" (e1=CODE.Sequential) eval(While#("while",e1, Do#("do",INHERIT))) "do" (e2=CODE.Expression) eval(return(e2)))
+        |   ((e1=CODE.Definition) eval(return(e1)))
+        |   ((e1=CODE.Sequential) (e2=CODE.Assignment) eval(return(e2)))
+        )
+/>
+
+<code Definition
+    parse = ("val" (e1=ID) eval(Val#("val",e1,INHERIT)) ":" (e2=CODE.Type) eval(Col#(":",e2,Eq#("=",INHERIT))) "=" (e3=CODE.Expression) eval(return(e3)))
+/>
+
+<code Type
+    parse = ((e1=CODE.Primitive) (e2=CODE.Type2) eval(return(e2)))
+/>
+
+<code Type2
+    parse =
+        (   ("ref" (e1=CODE.Type2) eval(return(Rop#(e1, "ref"))))
+        |   ("list" (e1=CODE.Type2) eval(return(Lop#(e1, "list"))))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Primitive
+    parse =
+        (   ("int" eval(return("int")))
+        |   ("real" eval(return("real")))
+        |   ("unit" eval(return("unit")))
+        |   ("bool" eval(return("bool")))
+        )
+/>
+
+<code Assignment
+    parse =
+        (   (":=" (e1=CODE.Expression) eval(return(Uop#(":=", e1))))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Sequential
+    parse = ((e1=CODE.Conditional) (e2=CODE.Sequential2) eval(return(e2)))
+/>
+
+<code Sequential2
+    parse =
+        (   ("," (e1=CODE.Conditional) eval(Bop#(",",INHERIT,e1)) (e2=CODE.Sequential2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Conditional
+    parse = ((e1=CODE.Relational) (e2=CODE.Conditional2) eval(return(e2)))
+/>
+
+<code Conditional2
+    parse =
+        (   ("and" (e1=CODE.Relational) eval(Bop#("and",INHERIT,e1)) (e2=CODE.Conditional2) eval(return(e2)))
+        |   ("or" (e1=CODE.Relational) eval(Bop#("or",INHERIT,e1)) (e2=CODE.Conditional2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Relational
+    parse = ((e1=CODE.Additive) (e2=CODE.Relational2) eval(return(e2)))
+/>
+
+<code Relational2
+   parse =
+       (   ("<" (e1=CODE.Additive) eval(Bop#("<",INHERIT,e1)) (e2=CODE.Relational2) eval(return(e2)))
+       |   (">" (e1=CODE.Additive) eval(Bop#(">",INHERIT,e1)) (e2=CODE.Relational2) eval(return(e2)))
+       |   ("=" (e1=CODE.Additive) eval(Bop#("=",INHERIT,e1)) (e2=CODE.Relational2) eval(return(e2)))
+       |   ("<=" (e1=CODE.Additive) eval(Bop#("<=",INHERIT,e1)) (e2=CODE.Relational2) eval(return(e2)))
+       |   (">=" (e1=CODE.Additive) eval(Bop#(">=",INHERIT,e1)) (e2=CODE.Relational2) eval(return(e2)))
+       |   ("" eval(return(INHERIT)))
+       )
+/>
+
+<code Additive
+    parse = ((e1=CODE.Multiplicative) (e2=CODE.Additive2) eval(return(e2)))
+/>
+
+<code Additive2
+    parse =
+        (   ("+" (e1=CODE.Multiplicative) eval(Bop#("+",INHERIT,e1)) (e2=CODE.Additive2) eval(return(e2)))
+        |   ("-" (e1=CODE.Multiplicative) eval(Bop#("-",INHERIT,e1)) (e2=CODE.Additive2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Multiplicative
+    parse = ((e1=CODE.Constructive) (e2=CODE.Multiplicative2) eval(return(e2)))
+/>
+
+<code Multiplicative2
+    parse =
+        (   ("*" (e1=CODE.Constructive) eval(Bop#("*",INHERIT,e1)) (e2=CODE.Multiplicative2) eval(return(e2)))
+        |   ("/" (e1=CODE.Constructive) eval(Bop#("/",INHERIT,e1)) (e2=CODE.Multiplicative2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Constructive
+    parse = ((e1=CODE.Unary) (e2=CODE.Constructive2) eval(return(e2)))
+/>
+
+<code Constructive2
+    parse =
+        (   ("::" (e1=CODE.Unary) eval(Bop#("::",INHERIT,e1)) (e2=CODE.Constructive2) eval(return(e2)))
+        |   ("" eval(return(INHERIT)))
+        )
+/>
+
+<code Unary
+    parse =
+        (   ("-" (e1=CODE.Unary) eval(return(Uop#("-", e1))))
+        |   ("hd" (e1=CODE.Unary) eval(return(Uop#("hd", e1))))
+        |   ("tl" (e1=CODE.Unary) eval(return(Uop#("tl", e1))))
+        |   ("ref" (e1=CODE.Unary) eval(return(Uop#("ref", e1))))
+        |   ("!" (e1=CODE.Unary) eval(return(Uop#("!", e1))))
+        |   ("not" (e1=CODE.Unary) eval(return(Uop#("not", e1))))
+        |   CODE.Primary
+        )
+/>
+
+<code Primary
+    parse =
+        (   ((e1=INT) eval(return(e1)))
+        |   ((e1=FLOAT) eval(return(e1)))
+        |   ((e1=ID) eval(return(e1)))
+        |   ("[" (e1=CODE.List) eval(return(e1)))
+        |   ("(" (e1=CODE.Sequential) ")")
+        )
+/>
+
+<code List
+    parse =
+        (   ("]" eval(return(Nop#("[]"))))
+        |   ((e1=CODE.Sequential) "]" eval(return(Lop#("[]", e1))))
+        )
+/>
+
